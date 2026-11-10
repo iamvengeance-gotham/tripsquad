@@ -91,7 +91,6 @@ const tripProperties = {
   travellers: { type: "array", items: { type: "string" }, description: "Names, or 'Friend 1'... if unknown" },
   budget_per_person: { type: "number", description: "INR" },
   vibe: { type: "array", items: { type: "string" }, description: "e.g. party, trek, sightseeing, chill, food" },
-  notes: { type: "string", description: "Short overview and important tips (permits, weather, cash, network)." },
   day_start: { type: "string", description: "'HH:MM' when a normal day starts. Default 09:00." },
   local_transport: {
     type: "string",

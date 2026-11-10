@@ -367,13 +367,6 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
             </div>
           )}
 
-          {trip.notes && (
-            <section className="panel notes-panel">
-              <div className="panel-title">💡 Good to know</div>
-              <p>{trip.notes}</p>
-            </section>
-          )}
-
           {/* ---------- Timeline ---------- */}
           {trip.days.map((day, di) => {
             const sch = schedules[di];
@@ -942,10 +935,6 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                   <label className="f">
                     Vibe (comma separated)
                     <input defaultValue={trip.vibe.join(", ")} onBlur={(e) => edit((d) => void (d.vibe = splitList(e.target.value)))} />
-                  </label>
-                  <label className="f">
-                    Good to know
-                    <textarea rows={3} value={trip.notes ?? ""} onChange={(e) => edit((d) => void (d.notes = e.target.value || undefined))} />
                   </label>
                 </div>
               )}
