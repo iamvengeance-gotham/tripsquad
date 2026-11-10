@@ -4,14 +4,14 @@
  * pinned items (flights, bus departures) stay at their clock time.
  * Arrival sets when the arrival day starts; departure sets a "leave by" deadline.
  */
-import type { DepartMode, ItemType, TripData, TripItem } from "./types";
+import type { DepartMode, ItemType, LocalMode, TripData, TripItem } from "./types";
 
 export const DEFAULT_DURATION: Record<ItemType, number> = { travel: 120, stay: 30, activity: 120, food: 60 };
 
 /** How long before the way out you need to leave (getting there + check-in). */
 export const LEAVE_BUFFER: Record<DepartMode, number> = { flight: 180, train: 60, bus: 45, cab: 30, other: 60 };
 
-export const GAP_MIN = 15; // walking/settling time between plans
+export const GAP_MIN = 10; // buffer between plans at the same place (or when we don't know where)
 export const SETTLE_MIN = 30; // freshen up after arriving
 export const DEFAULT_DAY_START = "09:00";
 
@@ -60,10 +60,55 @@ export function departureDayIndex(t: TripData): number {
   return t.days.length - 1;
 }
 
+// ---------- distance & travel time ----------
+
+type Point = { lat: number; lng: number; name?: string };
+
+export function distanceKm(a: Point, b: Point): number {
+  const R = 6371;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Roads wind: real road distance is roughly 1.35x the straight line. */
+export const ROAD_FACTOR = 1.35;
+export const SPEED_KMH: Record<LocalMode, number> = { cab: 22, scooter: 28, walk: 4.5 };
+const up5 = (m: number) => Math.max(5, Math.ceil(m / 5) * 5);
+
+export interface Commute {
+  min: number;
+  km: number;
+  how: LocalMode;
+  from?: string;
+}
+
+/** Travel time between two points. Short hops are walked; longer ones use the trip's local transport. */
+export function commuteBetween(a: Point, b: Point, mode: LocalMode = "cab"): Commute | null {
+  const km = distanceKm(a, b);
+  if (km < 0.15) return null; // same spot
+  const road = km * ROAD_FACTOR;
+  const round = (x: number) => Math.round(x * 10) / 10;
+  if (mode === "walk" || road <= 1.2) return { min: up5((road / SPEED_KMH.walk) * 60), km: round(road), how: "walk", from: a.name };
+  return { min: up5((road / SPEED_KMH[mode]) * 60 + 5), km: round(road), how: mode, from: a.name };
+}
+
+const startPoint = (it: TripItem): Point | null =>
+  it.lat != null && it.lng != null ? { lat: it.lat, lng: it.lng, name: it.place ?? it.title } : null;
+
+const endPoint = (it: TripItem): Point | null =>
+  it.to_lat != null && it.to_lng != null ? { lat: it.to_lat, lng: it.to_lng, name: it.place ?? it.title } : null;
+
+// ---------- schedule ----------
+
 export interface Slot {
   start: number;
   end: number;
-  /** A fixed-time item starts before the previous plan has finished. */
+  /** Travel from the previous place, before this plan starts. */
+  commute?: Commute;
+  /** A fixed-time item starts before you can get there from the previous plan. */
   clash: boolean;
   /** Ends after the group needs to leave for the way out. */
   late: boolean;
@@ -79,37 +124,55 @@ export interface DaySchedule {
   departAt?: number;
 }
 
-export function scheduleDay(t: TripData, di: number): DaySchedule {
-  const day = t.days[di];
-  if (!day) return { slots: [] };
-
+/**
+ * Works out every day in order, carrying "where the group is" from one plan to the next
+ * (and overnight, from the last stay or travel leg into the next morning).
+ */
+export function scheduleTrip(t: TripData): DaySchedule[] {
   const dayStart = toMin(normTime(t.day_start) ?? DEFAULT_DAY_START);
-  const arriveAt = arrivalDayIndex(t) === di ? toMin(normTime(t.arrive!.time)!) : undefined;
-  const isDep = departureDayIndex(t) === di;
-  const departAt = isDep ? toMin(normTime(t.depart!.time)!) : undefined;
-  const leaveBy = departAt != null ? departAt - LEAVE_BUFFER[t.depart?.mode ?? "other"] : undefined;
+  const arrIdx = arrivalDayIndex(t);
+  const depIdx = departureDayIndex(t);
+  const mode = t.local_transport ?? "cab";
+  let here: Point | null = null;
 
-  const base = arriveAt != null ? arriveAt + SETTLE_MIN : dayStart;
-  let cursor: number | null = null;
+  return t.days.map((day, di) => {
+    const arriveAt = arrIdx === di ? toMin(normTime(t.arrive!.time)!) : undefined;
+    const departAt = depIdx === di ? toMin(normTime(t.depart!.time)!) : undefined;
+    const leaveBy = departAt != null ? departAt - LEAVE_BUFFER[t.depart?.mode ?? "other"] : undefined;
+    const base = arriveAt != null ? arriveAt + SETTLE_MIN : dayStart;
+    let prevEnd: number | null = null;
 
-  const slots = day.items.map((it) => {
-    const dur = durationOf(it);
-    let start: number;
-    let clash = false;
-    if (isPinned(it)) {
-      start = toMin(normTime(it.time)!);
-      clash = cursor != null && start < cursor - GAP_MIN;
-    } else {
-      start = cursor == null ? base : Math.max(cursor, base);
-    }
-    const end = start + dur;
-    cursor = Math.max(cursor ?? 0, end + GAP_MIN);
-    const late = leaveBy != null && !isPinned(it) && end > leaveBy;
-    return { start, end, clash, late };
+    const slots = day.items.map((it): Slot => {
+      const dur = durationOf(it);
+      const from = startPoint(it);
+      const commute = here && from ? commuteBetween(here, from, mode) ?? undefined : undefined;
+      const travel = commute?.min ?? 0;
+
+      let start: number;
+      let clash = false;
+      if (isPinned(it)) {
+        start = toMin(normTime(it.time)!);
+        clash = prevEnd != null && start < prevEnd + travel;
+      } else if (prevEnd == null) {
+        start = base + travel;
+      } else {
+        start = Math.max(prevEnd + (commute ? travel : GAP_MIN), base);
+      }
+      const end = start + dur;
+      prevEnd = Math.max(prevEnd ?? 0, end);
+
+      // Where the group is after this plan. A travel leg with no location means we don't know any more.
+      here = endPoint(it) ?? from ?? (it.type === "travel" ? null : here);
+
+      const late = leaveBy != null && !isPinned(it) && end > leaveBy;
+      return { start, end, commute, clash, late };
+    });
+
+    return { slots, arriveAt, leaveBy, departAt };
   });
-
-  return { slots, arriveAt, leaveBy, departAt };
 }
+
+export const scheduleDay = (t: TripData, di: number): DaySchedule => scheduleTrip(t)[di] ?? { slots: [] };
 
 /** Best guess for the arrival date: the first day that doesn't start with travel. */
 export function guessArrivalDate(t: TripData): string | undefined {

@@ -4,6 +4,9 @@ export type ItemType = (typeof ITEM_TYPES)[number];
 export const OPTION_CATEGORIES = ["stay", "transport", "activity"] as const;
 export type OptionCategory = (typeof OPTION_CATEGORIES)[number];
 
+export const LOCAL_MODES = ["cab", "scooter", "walk"] as const;
+export type LocalMode = (typeof LOCAL_MODES)[number];
+
 export const DEPART_MODES = ["flight", "train", "bus", "cab", "other"] as const;
 export type DepartMode = (typeof DEPART_MODES)[number];
 
@@ -19,6 +22,12 @@ export interface TripItem {
   time?: string;
   notes?: string;
   place?: string;
+  /** Where it starts (decimal degrees). Used for travel time and the map. */
+  lat?: number;
+  lng?: number;
+  /** Where you end up, for things that move you (travel legs, treks). */
+  to_lat?: number;
+  to_lng?: number;
   /** Estimated cost per person, INR */
   est_cost?: number;
   link?: string;
@@ -72,6 +81,8 @@ export interface TripData {
   budget_per_person?: number;
   vibe: string[];
   notes?: string;
+  /** How the group gets around locally. Sets travel speed between places. */
+  local_transport?: LocalMode;
   /** "HH:MM" when a normal day starts. Default 09:00. */
   day_start?: string;
   /** When the group reaches the destination. */

@@ -3,6 +3,7 @@ import { normTime } from "./schedule";
 import {
   DEPART_MODES,
   ITEM_TYPES,
+  LOCAL_MODES,
   OPTION_CATEGORIES,
   type Booking,
   type TripData,
@@ -27,6 +28,11 @@ const num = (v: unknown): number | undefined => {
   const n =
     typeof v === "number" ? v : typeof v === "string" ? Number(v.replace(/[^\d.]/g, "")) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : undefined;
+};
+
+const coord = (v: unknown, limit: number): number | undefined => {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) && Math.abs(n) <= limit && n !== 0 ? Math.round(n * 1e5) / 1e5 : undefined;
 };
 
 function pick<T extends string>(v: unknown, list: readonly T[], fallback: T): T {
@@ -66,8 +72,20 @@ function normItem(v: unknown): TripItem {
     time,
     notes: opt(r.notes, 1000),
     place: opt(r.place, 120),
+    ...coords(r),
     est_cost: num(r.est_cost),
     link: safeUrl(r.link),
+  };
+}
+
+function coords(r: Record<string, unknown>) {
+  const lat = coord(r.lat, 90);
+  const lng = coord(r.lng, 180);
+  const to_lat = coord(r.to_lat, 90);
+  const to_lng = coord(r.to_lng, 180);
+  return {
+    ...(lat != null && lng != null ? { lat, lng } : {}),
+    ...(to_lat != null && to_lng != null ? { to_lat, to_lng } : {}),
   };
 }
 
@@ -127,6 +145,7 @@ export function normalizeTrip(raw: unknown): TripData {
   const destination = str(r.destination, 80);
   return {
     day_start: normTime(r.day_start),
+    local_transport: r.local_transport === undefined ? undefined : pick(r.local_transport, LOCAL_MODES, "cab"),
     arrive: normArrive(r.arrive),
     depart: normDepart(r.depart),
     title: str(r.title, 120) || (destination ? `${destination} trip` : "Our trip"),

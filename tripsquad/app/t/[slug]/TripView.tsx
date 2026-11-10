@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import {
   DEPART_MODES,
   ITEM_TYPES,
+  LOCAL_MODES,
   OPTION_CATEGORIES,
   type DepartMode,
+  type LocalMode,
   type ItemType,
   type OptionCategory,
   type TripData,
@@ -20,7 +22,7 @@ import {
   guessDepartureDate,
   isPinned,
   normTime,
-  scheduleDay,
+  scheduleTrip,
   toMin,
 } from "@/lib/schedule";
 
@@ -29,6 +31,8 @@ import {
 const ICON: Record<ItemType, string> = { travel: "🚌", stay: "🛏️", activity: "⛰️", food: "🍜" };
 const TYPE_LABEL: Record<ItemType, string> = { travel: "Travel", stay: "Stay", activity: "Activity", food: "Food" };
 const MODE_ICON: Record<DepartMode, string> = { flight: "✈️", train: "🚆", bus: "🚌", cab: "🚕", other: "🧭" };
+const LOCAL_ICON: Record<LocalMode, string> = { cab: "🚕", scooter: "🛵", walk: "🚶" };
+const LOCAL_LABEL: Record<LocalMode, string> = { cab: "Cab / auto", scooter: "Scooter / bike", walk: "Walking" };
 const CATEGORY_TITLE: Record<OptionCategory, string> = {
   stay: "Where should we stay?",
   transport: "How do we get there?",
@@ -87,6 +91,7 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
   );
   const [editTimes, setEditTimes] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [mapDay, setMapDay] = useState(0);
   const [toast, setToast] = useState("");
   const [me, setMe] = useState("");
   const [nameDraft, setNameDraft] = useState("");
@@ -275,7 +280,7 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
 
   // ---------- derived ----------
   const shareUrl = origin ? `${origin}/t/${slug}` : `/t/${slug}`;
-  const schedules = useMemo(() => trip.days.map((_, di) => scheduleDay(trip, di)), [trip]);
+  const schedules = useMemo(() => scheduleTrip(trip), [trip]);
   const perPerson = useMemo(
     () => trip.days.reduce((s, d) => s + d.items.reduce((t, i) => t + (i.est_cost ?? 0), 0), 0),
     [trip],
@@ -392,6 +397,13 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                       <h3 className="day-title">{day.title}</h3>
                     )}
                   </div>
+                  <button
+                    className={`icon-btn map-btn ${mapDay === di ? "on" : ""}`}
+                    title="Show this day on the map"
+                    onClick={() => setMapDay(di)}
+                  >
+                    🗺
+                  </button>
                   {canEdit && (
                     <div className="day-tools">
                       <button className="icon-btn" title="Move day up" onClick={() => moveDay(di, -1)} disabled={di === 0}>
@@ -425,7 +437,7 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                   {day.items.map((it, ii) => {
                     const slot = sch.slots[ii];
                     const prev = ii > 0 ? sch.slots[ii - 1] : null;
-                    const gap = prev ? slot.start - prev.end : 0;
+                    const gap = prev ? slot.start - prev.end - (slot.commute?.min ?? 0) : 0;
                     const open = openItem === it.id;
                     const dragging = drag?.di === di && drag.ii === ii;
                     return (
@@ -435,6 +447,14 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                         )}
                         {prev && gap >= 60 && !slot.clash && (
                           <div className="free-time">☕ Free time · {fmtDur(gap)}</div>
+                        )}
+                        {slot.commute && (
+                          <div className={`commute ${slot.commute.min >= 90 ? "long" : ""}`}>
+                            {LOCAL_ICON[slot.commute.how]} {fmtDur(slot.commute.min)}
+                            {slot.commute.how === "walk" ? " walk" : ""} · {slot.commute.km} km
+                            {slot.commute.from ? ` from ${slot.commute.from}` : ""}
+                            {slot.commute.min >= 90 && " · long transfer, maybe add a travel plan"}
+                          </div>
                         )}
                         <div
                           className={`tl-item t-${it.type} ${dragging ? "dragging" : ""} ${open ? "open" : ""} ${slot.clash || slot.late ? "has-warn" : ""}`}
@@ -474,7 +494,7 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                               )}
                             </div>
                             {it.notes && <div className="tl-notes">{it.notes}</div>}
-                            {slot.clash && <div className="warn">⚠ Starts before the previous plan ends. Move it or shorten something.</div>}
+                            {slot.clash && <div className="warn">⚠ You can&apos;t get here in time from the previous plan. Move it or shorten something.</div>}
                             {slot.late && sch.leaveBy != null && (
                               <div className="warn">⚠ Ends after {fmtMin(sch.leaveBy)}, when you need to leave.</div>
                             )}
@@ -489,6 +509,7 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                         {open && canEdit && (
                           <ItemEditor
                             item={it}
+                            destination={trip.destination}
                             startLabel={fmtMin(slot.start).slice(0, 5)}
                             dayIndex={di}
                             index={ii}
@@ -665,6 +686,20 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
 
         {/* ================= sidebar ================= */}
         <aside className="side-col">
+          <section className="side-card map-card">
+            <div className="side-title">
+              🗺 Route
+              <div className="day-pills">
+                {trip.days.map((d, i) => (
+                  <button key={d.id} className={`day-pill ${mapDay === i ? "on" : ""}`} onClick={() => setMapDay(i)}>
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <TripMap trip={trip} dayIndex={Math.min(mapDay, Math.max(0, totalDays - 1))} />
+          </section>
+
           {/* You & share */}
           <section className="side-card">
             <div className="side-title">👋 You</div>
@@ -888,6 +923,16 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
                     </label>
                   </div>
                   <label className="f">
+                    Getting around locally
+                    <select value={trip.local_transport ?? "cab"} onChange={(e) => edit((d) => void (d.local_transport = e.target.value as LocalMode))}>
+                      {LOCAL_MODES.map((m) => (
+                        <option key={m} value={m}>
+                          {LOCAL_ICON[m]} {LOCAL_LABEL[m]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="f">
                     Travellers (comma separated)
                     <input
                       defaultValue={trip.travellers.map((t) => t.name).join(", ")}
@@ -941,6 +986,7 @@ export default function TripView({ slug, initial, editKey }: { slug: string; ini
 
 function ItemEditor({
   item,
+  destination,
   startLabel,
   dayIndex,
   index,
@@ -952,6 +998,7 @@ function ItemEditor({
   onClose,
 }: {
   item: TripItem;
+  destination: string;
   startLabel: string;
   dayIndex: number;
   index: number;
@@ -962,6 +1009,26 @@ function ItemEditor({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const [locating, setLocating] = useState(false);
+  const [locMsg, setLocMsg] = useState("");
+  async function locate() {
+    const q = [item.place || item.title, destination].filter(Boolean).join(", ");
+    setLocating(true);
+    setLocMsg("");
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, {
+        headers: { Accept: "application/json" },
+      });
+      const j = (await r.json()) as { lat: string; lon: string; display_name: string }[];
+      if (!j[0]) throw new Error("not found");
+      onChange({ lat: Number(Number(j[0].lat).toFixed(5)), lng: Number(Number(j[0].lon).toFixed(5)), to_lat: undefined, to_lng: undefined });
+      setLocMsg(`Found: ${j[0].display_name.split(",").slice(0, 3).join(",")}`);
+    } catch {
+      setLocMsg("Couldn't find that place. Try a more specific name.");
+    } finally {
+      setLocating(false);
+    }
+  }
   const dur = durationOf(item);
   const durOptions = DURATIONS.includes(dur) ? DURATIONS : [...DURATIONS, dur].sort((a, b) => a - b);
   return (
@@ -1029,6 +1096,16 @@ function ItemEditor({
           Link
           <input value={item.link ?? ""} placeholder="https://…" onChange={(e) => onChange({ link: e.target.value || undefined })} />
         </label>
+      </div>
+
+      <div className="loc-row">
+        <span className="small muted">
+          {item.lat != null ? `📍 On the map (${item.lat.toFixed(3)}, ${item.lng?.toFixed(3)})` : "📍 Not on the map yet: travel time can't be worked out."}
+          {locMsg && ` · ${locMsg}`}
+        </span>
+        <button className="btn small" onClick={locate} disabled={locating || !(item.place || item.title)}>
+          {locating ? "Finding…" : item.lat != null ? "Re-find on map" : "Find on map"}
+        </button>
       </div>
 
       <label className="f">
@@ -1174,6 +1251,110 @@ function TimingsForm({
           Build my timings
         </button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- map (Leaflet + OpenStreetMap, no API key)
+
+type LeafletLike = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+function useLeaflet(): LeafletLike | null {
+  const [L, setL] = useState<LeafletLike | null>(null);
+  useEffect(() => {
+    const w = window as unknown as { L?: LeafletLike };
+    if (w.L) {
+      setL(w.L);
+      return;
+    }
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    let script = document.getElementById("leaflet-js") as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = "leaflet-js";
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    const onLoad = () => setL(w.L ?? null);
+    script.addEventListener("load", onLoad);
+    return () => script?.removeEventListener("load", onLoad);
+  }, []);
+  return L;
+}
+
+function TripMap({ trip, dayIndex }: { trip: TripData; dayIndex: number }) {
+  const L = useLeaflet();
+  const el = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletLike | null>(null);
+  const layerRef = useRef<LeafletLike | null>(null);
+
+  useEffect(() => {
+    if (!L || !el.current || mapRef.current) return;
+    const map = L.map(el.current, { scrollWheelZoom: false, zoomControl: true });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap",
+    }).addTo(map);
+    layerRef.current = L.layerGroup().addTo(map);
+    map.setView([20.6, 78.9], 4); // India
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [L]);
+
+  const day = trip.days[dayIndex];
+  const points = useMemo(() => {
+    const pts: { lat: number; lng: number; label: string; title: string; type: ItemType; end?: boolean }[] = [];
+    let n = 0;
+    for (const it of day?.items ?? []) {
+      if (it.lat != null && it.lng != null) {
+        n += 1;
+        pts.push({ lat: it.lat, lng: it.lng, label: String(n), title: it.title, type: it.type });
+        if (it.to_lat != null && it.to_lng != null) pts.push({ lat: it.to_lat, lng: it.to_lng, label: "", title: `${it.title} (end)`, type: it.type, end: true });
+      }
+    }
+    return pts;
+  }, [day]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = layerRef.current;
+    if (!L || !map || !layer) return;
+    layer.clearLayers();
+    if (!points.length) return;
+    const latlngs = points.map((p) => [p.lat, p.lng]);
+    L.polyline(latlngs, { color: "#0e7c74", weight: 3, opacity: 0.8, dashArray: "6 6" }).addTo(layer);
+    points.forEach((p) => {
+      const icon = L.divIcon({
+        className: "",
+        html: `<div class="mk mk-${p.type}${p.end ? " mk-end" : ""}">${p.end ? "" : p.label}</div>`,
+        iconSize: p.end ? [14, 14] : [26, 26],
+        iconAnchor: p.end ? [7, 7] : [13, 13],
+      });
+      L.marker([p.lat, p.lng], { icon, title: p.title }).bindTooltip(p.title).addTo(layer);
+    });
+    if (points.length === 1) map.setView(latlngs[0], 14);
+    else map.fitBounds(latlngs, { padding: [24, 24], maxZoom: 15 });
+  }, [L, points]);
+
+  return (
+    <div className="map-wrap">
+      <div ref={el} className="map" />
+      {!points.length && <div className="map-empty">No map locations for Day {dayIndex + 1} yet.</div>}
+      {day && (
+        <div className="map-caption small muted">
+          Day {dayIndex + 1}: {day.title}
+        </div>
+      )}
     </div>
   );
 }

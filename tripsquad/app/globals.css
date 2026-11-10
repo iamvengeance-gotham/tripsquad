@@ -274,3 +274,25 @@ input.day-title:hover { border-color: var(--line); }
 code, .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #efece5; border-radius: 8px; padding: 2px 6px; font-size: 0.88rem; word-break: break-all; }
 .code { display: block; padding: 10px 12px; margin-top: 6px; }
 .cta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 36px; }
+
+/* ---------- locations, travel time & map ---------- */
+.commute { margin: 0 0 2px 128px; font-size: 0.8rem; font-weight: 600; color: #1d4ed8; padding: 3px 10px; border-left: 2px dotted #93c5fd; }
+.commute.long { color: var(--danger); border-left-color: #fdba74; }
+.map-card { padding: 14px; }
+.map-wrap { position: relative; }
+.map { height: 250px; border-radius: 12px; overflow: hidden; position: relative; z-index: 0; background: #e8eef0; }
+.map-empty { position: absolute; inset: 0 0 22px 0; display: grid; place-items: center; text-align: center; padding: 20px; color: var(--muted); font-size: 0.85rem; background: rgba(244, 242, 238, .85); border-radius: 12px; z-index: 1; }
+.map-caption { margin-top: 6px; }
+.day-pills { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.day-pill { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.day-pill.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.map-btn.on { background: var(--brand-soft); }
+.loc-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; background: #f6f9fb; border-radius: 10px; padding: 8px 10px; }
+.mk { width: 26px; height: 26px; border-radius: 50%; background: var(--c-activity); color: #fff; font-weight: 800; font-size: 0.75rem; display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.mk-travel { background: var(--c-travel); }
+.mk-stay { background: var(--c-stay); }
+.mk-food { background: var(--c-food); }
+.mk-end { width: 14px; height: 14px; opacity: .8; }
+.modal-back { z-index: 1000; }
+.toast { z-index: 1001; }
+@media (max-width: 640px) { .commute { margin-left: 0; padding-left: 94px; border-left: none; } }

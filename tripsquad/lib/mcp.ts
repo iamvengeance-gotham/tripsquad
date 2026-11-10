@@ -37,7 +37,11 @@ const itemSchema = {
     time: { type: "string", description: "'HH:MM' 24h. Only for pinned items." },
     title: { type: "string", description: "e.g. 'IndiGo BLR → DEL' or 'Kheerganga trek starts at Barshaini'" },
     notes: { type: "string", description: "Practical tips: duration, what to carry, how to get there." },
-    place: { type: "string" },
+    place: { type: "string", description: "Short place name, e.g. 'Anjuna Beach' or 'Chalal village'" },
+    lat: { type: "number", description: "Latitude of where it happens/starts (decimal, approx is fine). Give it for every item you can." },
+    lng: { type: "number", description: "Longitude of where it happens/starts." },
+    to_lat: { type: "number", description: "Only for things that move you (travel legs, treks): latitude of where you end up." },
+    to_lng: { type: "number", description: "Longitude of where you end up." },
     est_cost: { type: "number", description: "Estimated cost PER PERSON in INR." },
     link: { type: "string", description: "https link to book or read more." },
   },
@@ -89,6 +93,11 @@ const tripProperties = {
   vibe: { type: "array", items: { type: "string" }, description: "e.g. party, trek, sightseeing, chill, food" },
   notes: { type: "string", description: "Short overview and important tips (permits, weather, cash, network)." },
   day_start: { type: "string", description: "'HH:MM' when a normal day starts. Default 09:00." },
+  local_transport: {
+    type: "string",
+    enum: ["cab", "scooter", "walk"],
+    description: "How the group gets around locally (scooter in Goa, cab in hills). Sets travel speed between places.",
+  },
   arrive: {
     type: "object",
     description: "When the group reaches the destination, if the user told you. Otherwise leave out: the app asks the organiser.",
@@ -125,6 +134,8 @@ export const TOOLS = [
       "activities grouped by area to minimise back-and-forth, food stops and where the group sleeps each night. " +
       "Give EVERY item a realistic duration_min, in the order it happens. Set pinned=true with a time only for fixed-clock " +
       "things (flights, bus departures, a night out at 21:00); the app calculates all other times. " +
+      "Give lat/lng for EVERY place (and to_lat/to_lng for travel legs and treks, where they end): the app uses them " +
+      "to add real travel time between places and to draw each day's route on a map, so keep nearby places on the same day. " +
       "If the user told you when they reach the destination or when their way back leaves, fill `arrive`/`depart`. " +
       "Put 2-4 stay choices (and transport choices if there's a real decision) in `options` so the group can vote. " +
       "Put everything someone must book in `bookings`. All costs are per-person estimates in INR. " +

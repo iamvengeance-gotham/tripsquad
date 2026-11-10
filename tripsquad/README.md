@@ -60,7 +60,8 @@ Follow-ups also work in the same chat: *"Add a day in Tosh"* or *"Make it cheape
 |---|---|
 | MCP server (JSON-RPC over Streamable HTTP, stateless, no SDK needed) | `lib/mcp.ts`, `app/api/mcp/route.ts` |
 | Trip rules: cleaning input, keeping votes on edit, votes, booking claims | `lib/trip.ts` |
-| Time engine: durations, fixed times, arrival/exit anchors, clash and late flags | `lib/schedule.ts` |
+| Time engine: durations, fixed times, travel time between places (distance → minutes), arrival/exit anchors, clash and late flags | `lib/schedule.ts` |
+| Route map (Leaflet + OpenStreetMap, no API key) and "Find on map" (OpenStreetMap search) | `app/t/[slug]/TripView.tsx` |
 | Database (Neon Postgres, one `trips` table with JSONB) | `lib/db.ts` |
 | Trip page, edit mode, votes, bookings | `app/t/[slug]/` |
 | Web API for the page | `app/api/trips/[slug]/…` |
