@@ -60,6 +60,7 @@ Follow-ups also work in the same chat: *"Add a day in Tosh"* or *"Make it cheape
 |---|---|
 | MCP server (JSON-RPC over Streamable HTTP, stateless, no SDK needed) | `lib/mcp.ts`, `app/api/mcp/route.ts` |
 | Trip rules: cleaning input, keeping votes on edit, votes, booking claims | `lib/trip.ts` |
+| Time engine: durations, fixed times, arrival/exit anchors, clash and late flags | `lib/schedule.ts` |
 | Database (Neon Postgres, one `trips` table with JSONB) | `lib/db.ts` |
 | Trip page, edit mode, votes, bookings | `app/t/[slug]/` |
 | Web API for the page | `app/api/trips/[slug]/…` |
@@ -76,11 +77,11 @@ Follow-ups also work in the same chat: *"Add a day in Tosh"* or *"Make it cheape
 
 ## Demo script (2 minutes of the video)
 
-1. **Claude** (0:00–0:40): type the Kasol request. Claude asks one or two questions, then calls `create_trip` and returns the links.
-2. **App** (0:40–1:10): open the edit link and walk through the header (budget versus estimate), day by day, stays to vote on, and who's booking what.
-3. **Edit** (1:10–1:30): click **Edit trip**, move "Night out in Kasol" to day 4, change the hostel price, and save.
-4. **Group** (1:30–1:50): open the share link on your phone as "Rahul", vote for a hostel and click "I'll book it" on the Volvo. The laptop updates within a few seconds.
-5. **Claude again** (1:50–2:00): *"Add a day in Tosh."* Refresh, and the new day is there and Rahul's vote is still there.
+1. **Claude** (0:00–0:35): type the Kasol request. Claude asks one or two questions, then calls `create_trip` and returns the links.
+2. **Timings** (0:35–0:55): open the edit link. The page asks *when do you reach Kasol* and *when does your way out leave*. Enter 08:00 on Day 2 and a 17:00 bus on Day 5. Every plan gets real clock times, plus "You reach Kasol" and "Leave by 16:15" markers.
+3. **Drag** (0:55–1:20): drag "Riverside café lunch" above "Walk to Chalal" and watch the times change. Drag "Shopping at the market" on Day 5: it's flagged red because it ends after you need to leave. Click it and change it to 1h, and the warning disappears.
+4. **Group** (1:20–1:45): open the share link on your phone as "Rahul", vote for a hostel and click "I'll book it" on the Volvo. The laptop updates within a few seconds.
+5. **Claude again** (1:45–2:00): *"Add a day in Tosh."* The new day appears and Rahul's vote is kept.
 
 **Tips:** record in a fresh chat; create one backup trip beforehand in case the live call is slow.
 

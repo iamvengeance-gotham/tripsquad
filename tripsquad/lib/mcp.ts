@@ -25,8 +25,16 @@ const itemSchema = {
   type: "object",
   properties: {
     id: { type: "string", description: "Keep the existing id when updating." },
-    time: { type: "string", description: "e.g. '06:10', 'Morning', 'Overnight'" },
     type: { type: "string", enum: ["travel", "stay", "activity", "food"] },
+    duration_min: {
+      type: "number",
+      description: "Realistic time it takes, in minutes (a meal 60-90, a trek 300, an overnight bus 780). The app works out clock times from durations.",
+    },
+    pinned: {
+      type: "boolean",
+      description: "true ONLY for things at a fixed clock time: flights, bus/train departures, booked slots, or an evening plan that must start at a set time.",
+    },
+    time: { type: "string", description: "'HH:MM' 24h. Only for pinned items." },
     title: { type: "string", description: "e.g. 'IndiGo BLR → DEL' or 'Kheerganga trek starts at Barshaini'" },
     notes: { type: "string", description: "Practical tips: duration, what to carry, how to get there." },
     place: { type: "string" },
@@ -80,6 +88,22 @@ const tripProperties = {
   budget_per_person: { type: "number", description: "INR" },
   vibe: { type: "array", items: { type: "string" }, description: "e.g. party, trek, sightseeing, chill, food" },
   notes: { type: "string", description: "Short overview and important tips (permits, weather, cash, network)." },
+  day_start: { type: "string", description: "'HH:MM' when a normal day starts. Default 09:00." },
+  arrive: {
+    type: "object",
+    description: "When the group reaches the destination, if the user told you. Otherwise leave out: the app asks the organiser.",
+    properties: { date: { type: "string", description: "YYYY-MM-DD" }, time: { type: "string", description: "HH:MM" } },
+  },
+  depart: {
+    type: "object",
+    description: "When the group's way out (return flight/bus/train) leaves, if known. Otherwise leave out: the app asks the organiser.",
+    properties: {
+      date: { type: "string", description: "YYYY-MM-DD" },
+      time: { type: "string", description: "HH:MM" },
+      mode: { type: "string", enum: ["flight", "train", "bus", "cab", "other"] },
+      from: { type: "string", description: "e.g. 'Bhuntar airport' or 'Kasol bus stand'" },
+    },
+  },
   days: { type: "array", items: daySchema },
   options: { type: "array", items: optionSchema, description: "Choices the group votes on" },
   bookings: { type: "array", items: bookingSchema, description: "Things someone in the group must book" },
@@ -97,8 +121,11 @@ export const TOOLS = [
       "BEFORE calling, make sure you know: origin, destination, travel dates, number of travellers (names if given), " +
       "budget per person in INR, preferred way to travel (flight/train/bus) and the vibe (party, sightseeing, trek, chill, food...). " +
       "Ask the user for anything missing in one short message. Use web search if you have it for current transport options, " +
-      "stays near the main hotspots and must-visit places. Build a realistic day-by-day plan: travel legs with timings, " +
+      "stays near the main hotspots and must-visit places. Build a realistic day-by-day plan: travel legs, " +
       "activities grouped by area to minimise back-and-forth, food stops and where the group sleeps each night. " +
+      "Give EVERY item a realistic duration_min, in the order it happens. Set pinned=true with a time only for fixed-clock " +
+      "things (flights, bus departures, a night out at 21:00); the app calculates all other times. " +
+      "If the user told you when they reach the destination or when their way back leaves, fill `arrive`/`depart`. " +
       "Put 2-4 stay choices (and transport choices if there's a real decision) in `options` so the group can vote. " +
       "Put everything someone must book in `bookings`. All costs are per-person estimates in INR. " +
       "AFTER calling, give the user BOTH links: the edit link is private to them; the share link is for their friends.",

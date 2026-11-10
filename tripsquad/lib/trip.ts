@@ -1,5 +1,7 @@
 import { randomBytes } from "crypto";
+import { normTime } from "./schedule";
 import {
+  DEPART_MODES,
   ITEM_TYPES,
   OPTION_CATEGORIES,
   type Booking,
@@ -50,11 +52,18 @@ export const newId = () => randomBytes(4).toString("hex");
 
 function normItem(v: unknown): TripItem {
   const r = obj(v);
+  const type = pick(r.type, ITEM_TYPES, "activity");
+  const time = normTime(r.time);
+  const dur = num(r.duration_min);
+  // Fixed time if Claude/the organiser says so. Older data: travel legs with a clock time are fixed.
+  const pinned = !!time && (r.pinned === true || (r.pinned === undefined && type === "travel"));
   return {
     id: str(r.id, 40) || newId(),
-    time: opt(r.time, 30),
-    type: pick(r.type, ITEM_TYPES, "activity"),
+    type,
     title: str(r.title, 160) || "Untitled",
+    duration_min: dur != null ? Math.min(Math.max(dur, 5), 1440) : undefined,
+    pinned: pinned || undefined,
+    time,
     notes: opt(r.notes, 1000),
     place: opt(r.place, 120),
     est_cost: num(r.est_cost),
@@ -96,10 +105,30 @@ function normBooking(v: unknown): Booking {
   };
 }
 
+function normArrive(v: unknown) {
+  const r = obj(v);
+  const a = { date: opt(r.date, 20), time: normTime(r.time) };
+  return a.date || a.time ? a : undefined;
+}
+
+function normDepart(v: unknown) {
+  const r = obj(v);
+  const d = {
+    date: opt(r.date, 20),
+    time: normTime(r.time),
+    mode: r.mode === undefined ? undefined : pick(r.mode, DEPART_MODES, "other"),
+    from: opt(r.from, 80),
+  };
+  return d.date || d.time || d.from ? d : undefined;
+}
+
 export function normalizeTrip(raw: unknown): TripData {
   const r = obj(raw);
   const destination = str(r.destination, 80);
   return {
+    day_start: normTime(r.day_start),
+    arrive: normArrive(r.arrive),
+    depart: normDepart(r.depart),
     title: str(r.title, 120) || (destination ? `${destination} trip` : "Our trip"),
     origin: str(r.origin, 80),
     destination,

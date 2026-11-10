@@ -4,11 +4,19 @@ export type ItemType = (typeof ITEM_TYPES)[number];
 export const OPTION_CATEGORIES = ["stay", "transport", "activity"] as const;
 export type OptionCategory = (typeof OPTION_CATEGORIES)[number];
 
+export const DEPART_MODES = ["flight", "train", "bus", "cab", "other"] as const;
+export type DepartMode = (typeof DEPART_MODES)[number];
+
 export interface TripItem {
   id: string;
-  time?: string;
   type: ItemType;
   title: string;
+  /** How long it takes, in minutes. Times are worked out from this. */
+  duration_min?: number;
+  /** true = happens at a fixed clock time (flight, bus departure, booked slot). */
+  pinned?: boolean;
+  /** "HH:MM" (24h). Only used when pinned. */
+  time?: string;
   notes?: string;
   place?: string;
   /** Estimated cost per person, INR */
@@ -41,6 +49,19 @@ export interface Booking {
   status: "todo" | "booked";
 }
 
+export interface Arrival {
+  date?: string;
+  time?: string;
+}
+
+export interface Departure {
+  date?: string;
+  time?: string;
+  mode?: DepartMode;
+  /** Where the way out leaves from, e.g. "Bhuntar airport" or "Kasol bus stand" */
+  from?: string;
+}
+
 export interface TripData {
   title: string;
   origin: string;
@@ -51,6 +72,12 @@ export interface TripData {
   budget_per_person?: number;
   vibe: string[];
   notes?: string;
+  /** "HH:MM" when a normal day starts. Default 09:00. */
+  day_start?: string;
+  /** When the group reaches the destination. */
+  arrive?: Arrival;
+  /** When the group's way out (return flight/bus/train) leaves. */
+  depart?: Departure;
   days: TripDay[];
   options: TripOption[];
   bookings: Booking[];
